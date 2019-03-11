@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Integrtion Lambda Template
+Description: Lambda Template
 Parameters:
   Vpc:
     Type: String

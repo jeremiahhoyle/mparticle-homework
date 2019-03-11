@@ -48,7 +48,7 @@ def lambda_handler(event, context):
     list_of_instance_ids = []
 
     reservations = response.get('Reservations')
-
+    client = boto3.client('ssm')
     for reservation in reservations:
         instances = reservation.get('Instances')
         pprint(instances)
@@ -56,23 +56,20 @@ def lambda_handler(event, context):
             instance_id = instance.get('InstanceId')
             list_of_instance_ids.append(instance_id)
 
-    print(list_of_instance_ids)
+            response = client.send_command(
+                InstanceIds= [instance_id],
+                DocumentName='AWS-RunShellScript',
 
-    client = boto3.client('ssm')
+                TimeoutSeconds=300,
+                Comment='Running Command [{command}]'.format(command=command),
+                Parameters={"commands":
+                                ['/usr/bin/python3 /root/mparticle-homework/run_command.py --command "{command}" --unique_name testing --log_level debug'.format(
+                                    command=command )
+                                ]
+                }
 
-    response = client.send_command(
-        InstanceIds= list_of_instance_ids,
-        DocumentName='AWS-RunShellScript',
+            )
 
-        TimeoutSeconds=300,
-        Comment='Running Command [{command}]'.format(command=command),
-        Parameters={"commands":
-                        ['/usr/bin/python3 /root/mparticle-homework/run_command.py --command "{command}" --unique_name testing --log_level debug'.format(
-                            command=command )
-                        ]
-        }
-
-    )
 
 
 
@@ -80,7 +77,7 @@ if __name__ == "__main__":
 
     test_data = {
         "autoscaling_group_name": "test-cluster-AutoScalingGroup-RCK1Z7LSX3X3",
-        "command": "/bin/sleep 300"
+        "command": "/bin/sleep 30"
     }
 
     lambda_handler(test_data, "test")

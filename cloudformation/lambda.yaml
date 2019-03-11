@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Integrtion Lambda Template
+Description: Lambda Template
 Parameters:
   CIDR:
     Type: "String"
@@ -108,6 +108,21 @@ Resources:
                 Action:
                   - sqs:*
                 Resource: '*'
+              - Sid: ssm
+                Effect: Allow
+                Action:
+                  - ssm:*
+                  - ssmmessages:CreateControlChannel
+                  - ssmmessages:CreateDataChannel
+                  - ssmmessages:OpenControlChannel
+                  - ssmmessages:OpenDataChannel
+                Resource: '*'
+              - Sid: GetEncryptionConfiguration
+                Effect: Allow
+                Action:
+                  - s3:GetEncryptionConfiguration
+                Resource: '*'
+
 
   SecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'

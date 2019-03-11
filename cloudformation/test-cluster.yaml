@@ -113,14 +113,31 @@ Resources:
                 Effect: "Allow"
                 Resource: "*"
                 Action:
-                - "logs:*"
+                - logs:*
               - Sid: ssm
-                Effect: "Allow"
-                Resource: "*"
+                Effect: Allow
                 Action:
-                - "ssm:*"
+                - ssm:*
+                - ssmmessages:CreateControlChannel
+                - ssmmessages:CreateDataChannel
+                - ssmmessages:OpenControlChannel
+                - ssmmessages:OpenDataChannel
+                Resource: '*'
+
+              - Sid: GetEncryption
+                Effect: Allow
+                Action:
+                - s3:GetEncryptionConfiguration
+                Resource: '*'
+
               - Sid: cloudwatch
                 Effect: "Allow"
-                Resource: "*"
+                Resource: '*'
                 Action:
                 - "cloudwatch:PutMetricData"
+
+              - Sid: ec2messages
+                Effect: "Allow"
+                Resource: '*'
+                Action:
+                - ec2messages:*
