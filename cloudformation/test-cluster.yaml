@@ -4,14 +4,24 @@ Description: mParticle Test Cluster
 Parameters:
   Vpc:
     Type: "String"
-    Description: "Environment (qa or 'prod')"
-    Default: "qa"
+    Description: "VPC ID"
+  CIDR:
+    Type: "String"
+    Description: "IP address range of the internal network"
+  Subnet:
+    Type: "String"
+    Description: "Subnet for instances"
+  AZ:
+    Type: "String"
+    Description: Availability Zone for the instance
+  Key:
+    Type: "String"
+    Description: The security key for ssh
+  Bucket:
+    Type: "String"
+    Description: Bucket to deploy to
 
-Mappings:
-  qa:
-    us-west-2:
-      key: jeremyhoyle
-      instance: t2.small
+
 
 Resources:
 
@@ -20,43 +30,32 @@ Resources:
     Type: "AWS::AutoScaling::AutoScalingGroup"
     Properties:
       AvailabilityZones:
-        Fn::GetAZs: !Ref "AWS::Region"
+        - !Ref AZ
       VPCZoneIdentifier:
-        Fn::Split:
-          - ","
-          - Fn::ImportValue: !Join [':',[!Ref "Vpc", "private-subnets"]]
+        - !Ref Subnet
       LaunchConfigurationName: !Ref "LaunchConfiguration"
       DesiredCapacity: 2
       MinSize: 1
       MaxSize: 2
       Tags:
         - Key: Name
-          Value:
-            Fn::Join:
-              - '-'
-              - - !Ref Vpc
-                - "integation-docker-slave"
+          Value: "test-cluster"
           PropagateAtLaunch: True
-        - Key: Vpc
-          Value: !Ref Vpc
-          PropagateAtLaunch: True
-          PropagateAtLaunch: True
-        - Key: role
-          Value: integation-docker-slave
-          PropagateAtLaunch: True
+
+
 
   LaunchConfiguration:
     Type: "AWS::AutoScaling::LaunchConfiguration"
     Properties:
       ImageId: ami-095cd038eef3e5074
       AssociatePublicIpAddress: false
-      KeyName: !FindInMap [ Ref: "Vpc", !Ref "AWS::Region", "key" ]
+      KeyName: !Ref "Key"
       IamInstanceProfile:
-        !Ref "ECSInstanceProfile"
-      InstanceType: !FindInMap [ Ref: "Vpc", !Ref "AWS::Region", "instance" ]
+        !Ref "InstanceProfile"
+      InstanceType: t2.small
       InstanceMonitoring: "false"
       SecurityGroups:
-        - Fn::ImportValue: !Join [':',[ !Ref Vpc,"fathom-all-port-internal-security-group"]]
+        - !Ref SecurityGroup
       UserData:
         Fn::Base64:
           Fn::Join:
@@ -64,19 +63,35 @@ Resources:
             - - "#!/bin/bash"
               - "set -o errexit"
               - "set -o xtrace"
-              - "start ecs"
               - "yum update -y"
               - "yum install -y git"
-              - "git clone https://github.com/jeremiahhoyle/mparticle-homework.git"
-              - "cd mparticle-homework"
-              - "pip3 install -r requirements.txt"
+              - "yum install -y python3"
+              - "git clone https://github.com/jeremiahhoyle/mparticle-homework.git /root/mparticle-homework"
+              - "pip3 install -r /root/mparticle-homework/requirements.txt"
+              - "chmod +x /root/mparticle-homework/run_command.py"
+              - "mkdir /root/.aws"
+              - "cp /root/mparticle-homework/aws.conf /root/.aws/config"
+              - !Join ['',[ "echo 'region = ", !Ref "AWS::Region", "' >> /root/.aws/config" ]]
 
 
   InstanceProfile:
     Type: "AWS::IAM::InstanceProfile"
     Properties:
       Path: "/"
-      Roles: [ !Ref "ECSInstanceRole" ]
+      Roles: [ !Ref "InstanceRole" ]
+
+  SecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: !Join ['-',[ !Ref Vpc, "internal-network-range"]]
+      GroupDescription: !Join [' ',[ "Instance up to the internal network range"]]
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: !Ref CIDR
+          Description: Internal Network
 
   InstanceRole:
     Type: "AWS::IAM::Role"
@@ -94,23 +109,18 @@ Resources:
         - PolicyName: "EcsService"
           PolicyDocument:
             Statement:
-              - Sid: s3
-                Effect: "Allow"
-                Resource:
-                  - "arn:aws:s3:::jeremy-test-bucket/*"
-                  - "arn:aws:s3:::jeremy-test-bucket"
-                Action:
-                  - "s3:*"
               - Sid: Logs
                 Effect: "Allow"
                 Resource: "*"
                 Action:
-                - "logs:CreateLogStream"
-                - "logs:PutLogEvents"
-
-Outputs:
-  AuroraAddress:
-    Description: Log directory in AWS
-    Value: "neptune-reads-ingestion"
-    Export:
-      Name: !Join ['-',[ !Ref Vpc,"neptune-reads-ingestion"]]
+                - "logs:*"
+              - Sid: ssm
+                Effect: "Allow"
+                Resource: "*"
+                Action:
+                - "ssm:*"
+              - Sid: cloudwatch
+                Effect: "Allow"
+                Resource: "*"
+                Action:
+                - "cloudwatch:PutMetricData"

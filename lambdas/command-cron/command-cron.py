@@ -1,8 +1,7 @@
 import boto3
 import json
 import os
-import datetime
-from pytz import timezone
+from pprint import pprint
 
 print('Loading function')
 
@@ -22,9 +21,11 @@ def lambda_handler(event, context):
     '''
     print("Received event: " + json.dumps(event, indent=2))
 
-    client = boto3.client('sqs')
+    client = boto3.client('ec2')
 
     autoscaling_group_name = event.get("autoscaling_group_name", "")
+    command = event.get("command", "")
+
     intervals = event.get("intervals", "15")
     queue = os.environ.get('queue')
 
@@ -36,25 +37,50 @@ def lambda_handler(event, context):
                     autoscaling_group_name,
                 ]
             },
+            {
+                'Name': 'instance-state-name',
+                'Values': [
+                    "running"
+                ]
+            },
         ]
     )
-    list_of_ips = []
+    list_of_instance_ids = []
 
     reservations = response.get('Reservations')
-    instances = reservations.get('Instances')
 
-    for instance in instances:
-        private_ip_address = instance.get('PrivateIpAddress')
-        list_of_ips.append(private_ip_address)
+    for reservation in reservations:
+        instances = reservation.get('Instances')
+        pprint(instances)
+        for instance in instances:
+            instance_id = instance.get('InstanceId')
+            list_of_instance_ids.append(instance_id)
 
+    print(list_of_instance_ids)
 
+    client = boto3.client('ssm')
 
+    response = client.send_command(
+        InstanceIds= list_of_instance_ids,
+        DocumentName='AWS-RunShellScript',
 
+        TimeoutSeconds=300,
+        Comment='Running Command [{command}]'.format(command=command),
+        Parameters={"commands":
+                        ['/usr/bin/python3 /root/mparticle-homework/run_command.py --command "{command}" --unique_name testing --log_level debug'.format(
+                            command=command )
+                        ]
+        }
 
-
-
+    )
 
 
 
 if __name__ == "__main__":
-    lambda_handler("test", "test")
+
+    test_data = {
+        "autoscaling_group_name": "test-cluster-AutoScalingGroup-RCK1Z7LSX3X3",
+        "command": "/bin/sleep 300"
+    }
+
+    lambda_handler(test_data, "test")

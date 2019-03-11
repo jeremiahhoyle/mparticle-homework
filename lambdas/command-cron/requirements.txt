@@ -1,5 +1,2 @@
-awscli==1.16.73
-awsebcli==3.10.2
-boto3==1.9.63
-pytz
-
+awscli
+boto3

@@ -23,7 +23,7 @@ Resources:
       BatchSize: 10
       Enabled: true
       EventSourceArn: !GetAtt MyQueue.Arn
-      FunctionName: !GetAtt LambdaFunction.Arn
+      FunctionName: Fn::ImportValue: !Join [':',[ !Ref Name, "lambda"]]
 
   CommandQueue:
     Type: AWS::SQS::Queue
@@ -33,7 +33,7 @@ Resources:
 
 Outputs:
   Lambda:
-    Description: "lambda arn"
-    Value: !GetAtt Lambda.Arn
+    Description: "queue arn"
+    Value: !GetAtt CommandQueue.Arn
     Export:
-      Name: !Join [':',[ !Ref Vpc ,!Ref Name, "lambda"]]
+      Name: !Join [':',[ !Ref Name, "queue"]]

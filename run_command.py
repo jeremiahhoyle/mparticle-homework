@@ -65,7 +65,10 @@ class Notifying:
 
     def __init__(self, unique_name):
 
-        self.slack_token = os.environ["SLACK_API_TOKEN"]
+        self.client = boto3.client('ssm')
+
+        self.slack_token = self.__get_paraeter()
+
 
     def send_message(self, message):
 
@@ -76,6 +79,14 @@ class Notifying:
             text=message
         )
 
+    def __get_paraeter(self):
+        response = self.client.get_parameters(
+            Names=[
+                "SLACK_API_TOKEN"
+            ]
+        )
+
+        return response['Parameters'][0]['Value']
 
 class RunningCheck:
     """
@@ -207,10 +218,12 @@ class RunCommand:
                 return message
 
             message = """
-            Sucessfully ran command [{command}].
+            Sucessfully ran command [{command}] on ({hostname}) .
             Output is:
             {output}
-            """.format(command=self.command, output=output)
+            """.format(command=self.command,
+                       output=output,
+                       hostname=hostname)
             self.__info_notify(message=message)
 
             # calculate start and end time
@@ -260,6 +273,7 @@ def parse_args():
                         help="This will be a unqiue name will ensure no other commands are being ran anywhere else")
     parser.add_argument("--host", required=False, type=str,
                         help="Hostname or IP address of the server being ran on")
+
     parser.add_argument("--log_level", type=str, choices=['debug', 'info', 'error','critical'], default='info',
                         help="This is the logging level")
 
@@ -283,8 +297,8 @@ if __name__ == '__main__':
     else:
         input_log_level = logging.INFO
 
-    # self.syslog = "/var/log/syslog"
-    syslog = "/tmp/syslog"
+    syslog = "/var/log/syslog"
+    #syslog = "/tmp/syslog"
     log_group_name = 'run_command'
     stream_name = "{unqiue_name}-logs".format(unqiue_name=args.unique_name)
     logging.basicConfig(level=input_log_level,

@@ -2,79 +2,120 @@
 set -o errexit
 set -o xtrace
 
-
 if [[ -z $1 ]]; then
-echo "environment to deploy"
-echo "example: deploy-cloudformation.sh qa dyanmodb.yaml dyanmodb"
+echo "cloudformation template to deploy"
 exit
+else
+filename="$1"
 fi
 
 if [[ -z $2 ]]; then
-echo "template to deploy"
-echo "example: deploy-cloudformation.sh qa dyanmodb.yaml dyanmodb"
+echo "stackname name"
 exit
+else
+stack_name="$2"
 fi
 
 if [[ -z $3 ]]; then
-echo "stackname name"
-echo "example: deploy-cloudformation.sh qa dyanmodb.yaml dyanmodb"
+echo "profile not found, assigning environment"
 exit
+else
+profile="$3"
 fi
 
 if [[ -z $4 ]]; then
-echo "profile not found, assigning environment"
-profile=$1
+echo "No specified s3 bucket."
+exit
 else
-profile=$4
+bucket="$4"	        #
 fi
 
 if [[ -z $5 ]]; then
+echo "vpc to number to deploy to"
+exit
+else
+vpc="$5"
+fi
+
+if [[ -z $6 ]]; then
+echo "subnet needs to be specified"
+exit
+else
+subnet="$6"
+fi
+
+if [[ -z $7 ]]; then
+echo "availability zone"
+exit
+else
+az="$7"
+fi
+
+if [[ -z $8 ]]; then
+echo "internal network ip range"
+exit
+else
+iprange="$8"
+fi
+
+if [[ -z $9 ]]; then
+echo "security key"
+exit
+else
+securitykey="$9"
+fi
+
+if [[ -z ${10} ]]; then
+echo "region"
+region="us-west-2"
+else
+region=${10}
+fi
+
+
+if [[ -z ${11} ]]; then
 echo "No Optional Parameters"
 else
 # this little mess takes the last of the arguments and interates through to get all the parameters
 argc=$#
 argv=($@)
 
-for (( j=4; j<argc; j++ )); do
+for (( j=10; j<argc; j++ )); do
     parameters="$parameters ${argv[j]}"
     echo
 done
 
 fi
 
+s3_path="$bucket/$filename"
+
 CURRENT=$(pwd)
 cloudformation_path=$CURRENT/cloudformation
-filename="$2"
-environment="$1"
-stack_name="$environment-$3"
+
+# this chaos is checking to see if the stack exists and creating instead of updating
 action="update"
-
-# check if stackname exists
-
 { # your 'try' block
-    aws cloudformation describe-stacks --stack-name $stack_name --profile $profile --region us-west-2 && action="update"
+    aws cloudformation describe-stacks --stack-name $stack_name --profile $profile --region $region && action="update"
 } || { # your 'catch' block
    action="create"
 }
 
-if [ $environment = "prod" ]; then
-    fathom_env="Shared Production"
-	s3_path="com-gwfathom-cf-deploy/$filename"
-else
-	s3_path="com-gwfathom-dev-deploy/$filename"
-	fathom_env="Development"
-fi
-
-
+# paths for s3 upload and cloudformation creationg
 s3_file_path="s3://$s3_path"
 s3_location="https://s3.amazonaws.com/$s3_path"
 
+# uploading the template to s3
+aws s3 cp $cloudformation_path/$filename $s3_file_path --profile $profile --region $region
 
-aws s3 cp $cloudformation_path/$filename $s3_file_path --profile $profile --region us-west-2
-
-# add optional parameters
+# updating/creating the stack
 aws cloudformation $action-stack --capabilities CAPABILITY_IAM --stack-name $stack_name \
 --template-url $s3_location \
---parameters  ParameterKey=Vpc,ParameterValue=$environment $parameters --profile $profile --region us-west-2 \
---tags Key=Environment,Value="$fathom_env" Key=Customer,Value=FATHOM Key=Customer,Value=FATHOM
+--parameters \
+ParameterKey=Vpc,ParameterValue="$vpc" \
+ParameterKey=CIDR,ParameterValue="$iprange" \
+ParameterKey=Subnet,ParameterValue="$subnet" \
+ParameterKey=Key,ParameterValue="$securitykey" \
+ParameterKey=AZ,ParameterValue="$az" \
+ParameterKey=Bucket,ParameterValue="$bucket" \
+$parameters --profile $profile --region $region
 

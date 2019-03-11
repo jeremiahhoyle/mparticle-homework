@@ -1,26 +1,38 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Integrtion Lambda Template
 Parameters:
-  Vpc:
-    Type: String
-    Description: The VPC that it runs in (  'qa' or 'prod')
-    Default: qa
-    AllowedValues:
-      - qa
-      - prod
+  CIDR:
+    Type: "String"
+    Description: "IP address range of the internal network"
+  Subnet:
+    Type: "String"
+    Description: "Subnet for instances"
+  Bucket:
+    Type: "String"
+    Description: Availability Zone for the instance
   Name:
     Type: String
     Description: Unique Name of the Lambda to be deployed
   Version:
     Type: String
     Description: StackVersion
+  AZ:
+    Type: "String"
+    Description: Availability Zone for the instance
+  Key:
+    Type: "String"
+    Description: The security key for ssh
+  Vpc:
+    Type: "String"
+    Description: "VPC ID"
+
 
 Resources:
   Lambda:
     Type: AWS::Lambda::Function
     Properties:
       Code:
-        S3Bucket: !Join ['-',[ !Ref Vpc,"fathom-integration"]]
+        S3Bucket: !Ref Bucket
         S3Key: !Join
           - ''
           - - lambda/
@@ -28,14 +40,8 @@ Resources:
             - '-'
             - !Ref 'Version'
             - .zip
-      Description: !Join [' ',[ !Ref Vpc ,!Ref Name, "lambda"]]
-      Environment:
-        Variables:
-          Environment: !Ref Vpc
-          Version: !Ref 'Version'
-          Dbhost:
-            Fn::ImportValue: !Join [':',[!Ref Vpc,"aurora-db-endpoint-address"]]
-      FunctionName: !Join ['-',[ !Ref Vpc ,!Ref Name, "lambda"]]
+      Description: !Join [' ',[!Ref Name, "lambda"]]
+      FunctionName: !Join ['-',[!Ref Name, "lambda"]]
       Handler: !Join ['.',[!Ref Name, "lambda_handler"]]
       MemorySize: 128
       Role: !GetAtt 'LambdaRole.Arn'
@@ -44,11 +50,9 @@ Resources:
         Mode: Active
       VpcConfig:
         SecurityGroupIds:
-          - Fn::ImportValue: !Join [':',[!Ref Vpc,"fathom-all-port-internal-security-group"]]
+          - !Ref SecurityGroup
         SubnetIds:
-          Fn::Split:
-          - ","
-          - Fn::ImportValue: !Join [':',[!Ref "Vpc", "private-subnets"]]
+          - !Ref Subnet
       Timeout: 300
       Tags:
         - Key: version
@@ -57,8 +61,8 @@ Resources:
   LambdaAlias:
     Type: AWS::Lambda::Alias
     Properties:
-      Name: !Join ['-',[ !Ref Vpc ,!Ref Name, "Lambda"]]
-      Description: !Join [' ',[ !Ref Vpc ,!Ref Name, "lambda"]]
+      Name: !Join ['-',[ !Ref Name, "Lambda"]]
+      Description: !Join [' ',[ !Ref Name, "lambda"]]
       FunctionName: !Ref 'Lambda'
       FunctionVersion: "$LATEST"
 
@@ -84,7 +88,7 @@ Resources:
                 Action:
                   - s3:*
                 Resource:
-                  - !Join ['-',[ "arn:aws:s3:::", !Ref Vpc,"fathom-integration"]]
+                  - !Join ['-',[ "arn:aws:s3:::", !Ref Bucket ]]
               - Sid: ec2
                 Effect: Allow
                 Action:
@@ -105,6 +109,18 @@ Resources:
                   - sqs:*
                 Resource: '*'
 
+  SecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: !Join ['-',[ !Ref Vpc, "lambda-network-range"]]
+      GroupDescription: !Join [' ',[ "Lambda up to the internal network range"]]
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: !Ref CIDR
+          Description: Internal Network
 
 Outputs:
   Lambda:
