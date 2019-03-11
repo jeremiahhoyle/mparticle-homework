@@ -3,7 +3,7 @@
 This script will run on a group of instances designated by an autoscaling group.
 
 #### This is the flow as it is now.
-1. The lambda kicks gets all the instances under a particular autoscaling group and calls SSM Runcommand for each instance
+1. The lambda gets all the instances under a particular autoscaling group and calls SSM Runcommand for each instance
 1. The SSM runcommand runs the run_command.py script on each instance
 1. The run_command checks to see if the command is being ran on any other instance
 1. If not, it will run the command
@@ -11,11 +11,12 @@ This script will run on a group of instances designated by an autoscaling group.
 ![RunCommand](images/RunCommand_Flow.jpg)
 
 #### This would be a better flow with a queue so if it fails, it will try again.
-1. The lambda kicks gets all the instances under a particular autoscaling group and calls SSM Runcommand for each instance
+1. The lambda gets all the instances under a particular autoscaling group and puts them in queue.
+1. The queue triggers a lambda which will call SSM Runcommand for each instance
 1. The SSM runcommand runs the run_command.py script on each instance
 1. The run_command checks to see if the command is being ran on any other instance
 1. If not, it will run the command
-1. If so, then it will fail.
+1. If so, then it will put it back into the queue.
 ![RunCommand](images/RunCommand_Flow_with_Queue.jpg)
 
 ### Before Deployment
