@@ -1,0 +1,116 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: mParticle Test Cluster
+
+Parameters:
+  Vpc:
+    Type: "String"
+    Description: "Environment (qa or 'prod')"
+    Default: "qa"
+
+Mappings:
+  qa:
+    us-west-2:
+      key: jeremyhoyle
+      instance: t2.small
+
+Resources:
+
+
+  AutoScalingGroup:
+    Type: "AWS::AutoScaling::AutoScalingGroup"
+    Properties:
+      AvailabilityZones:
+        Fn::GetAZs: !Ref "AWS::Region"
+      VPCZoneIdentifier:
+        Fn::Split:
+          - ","
+          - Fn::ImportValue: !Join [':',[!Ref "Vpc", "private-subnets"]]
+      LaunchConfigurationName: !Ref "LaunchConfiguration"
+      DesiredCapacity: 2
+      MinSize: 1
+      MaxSize: 2
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Join:
+              - '-'
+              - - !Ref Vpc
+                - "integation-docker-slave"
+          PropagateAtLaunch: True
+        - Key: Vpc
+          Value: !Ref Vpc
+          PropagateAtLaunch: True
+          PropagateAtLaunch: True
+        - Key: role
+          Value: integation-docker-slave
+          PropagateAtLaunch: True
+
+  LaunchConfiguration:
+    Type: "AWS::AutoScaling::LaunchConfiguration"
+    Properties:
+      ImageId: ami-095cd038eef3e5074
+      AssociatePublicIpAddress: false
+      KeyName: !FindInMap [ Ref: "Vpc", !Ref "AWS::Region", "key" ]
+      IamInstanceProfile:
+        !Ref "ECSInstanceProfile"
+      InstanceType: !FindInMap [ Ref: "Vpc", !Ref "AWS::Region", "instance" ]
+      InstanceMonitoring: "false"
+      SecurityGroups:
+        - Fn::ImportValue: !Join [':',[ !Ref Vpc,"fathom-all-port-internal-security-group"]]
+      UserData:
+        Fn::Base64:
+          Fn::Join:
+            - "\n"
+            - - "#!/bin/bash"
+              - "set -o errexit"
+              - "set -o xtrace"
+              - "start ecs"
+              - "yum update -y"
+              - "yum install -y git"
+              - "git clone https://github.com/jeremiahhoyle/mparticle-homework.git"
+              - "cd mparticle-homework"
+              - "pip3 install -r requirements.txt"
+
+
+  InstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: "/"
+      Roles: [ !Ref "ECSInstanceRole" ]
+
+  InstanceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      Policies:
+        - PolicyName: "EcsService"
+          PolicyDocument:
+            Statement:
+              - Sid: s3
+                Effect: "Allow"
+                Resource:
+                  - "arn:aws:s3:::jeremy-test-bucket/*"
+                  - "arn:aws:s3:::jeremy-test-bucket"
+                Action:
+                  - "s3:*"
+              - Sid: Logs
+                Effect: "Allow"
+                Resource: "*"
+                Action:
+                - "logs:CreateLogStream"
+                - "logs:PutLogEvents"
+
+Outputs:
+  AuroraAddress:
+    Description: Log directory in AWS
+    Value: "neptune-reads-ingestion"
+    Export:
+      Name: !Join ['-',[ !Ref Vpc,"neptune-reads-ingestion"]]

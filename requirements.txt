@@ -1,0 +1,4 @@
+watchtower
+boto3
+slackclient
+sentry_sdk

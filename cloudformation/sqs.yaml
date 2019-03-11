@@ -1,0 +1,39 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Integrtion Lambda Template
+Parameters:
+  Vpc:
+    Type: String
+    Description: The VPC that it runs in (  'qa' or 'prod')
+    Default: qa
+    AllowedValues:
+      - qa
+      - prod
+  Name:
+    Type: String
+    Description: Unique Name of the Lambda to be deployed
+  Version:
+    Type: String
+    Description: StackVersion
+
+Resources:
+
+  LambdaFunctionEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      Enabled: true
+      EventSourceArn: !GetAtt MyQueue.Arn
+      FunctionName: !GetAtt LambdaFunction.Arn
+
+  CommandQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      DelaySeconds: 0
+      VisibilityTimeout: 120
+
+Outputs:
+  Lambda:
+    Description: "lambda arn"
+    Value: !GetAtt Lambda.Arn
+    Export:
+      Name: !Join [':',[ !Ref Vpc ,!Ref Name, "lambda"]]
