@@ -2,6 +2,9 @@
 
 This script will run on a group of instances designated by an autoscaling group.
 
+![RunCommand](images/RunCommand_Flow.jpg)
+
+![RunCommand](images/RunCommand_Flow_with_Queue.jpg)
 
 ### Before Deployment
 You must have AWS keys for the QA account and Prod account and your .aws/conf file setup like this
